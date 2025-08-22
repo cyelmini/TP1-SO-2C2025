@@ -1,0 +1,38 @@
+#ifndef UTILS_H
+#define UTILS_H
+
+#include <stdio.h>
+#include <stdbool.h>
+#include <sys/types.h> 
+#include <semaphore.h>
+
+typedef struct {
+    char name[16]; // Nombre del jugador
+    unsigned int score; // Puntaje
+    unsigned int invalidMoves; // Cantidad de solicitudes de movimientos inválidas realizadas
+    unsigned int validMoves; // Cantidad de solicitudes de movimientos válidas realizadas
+    unsigned short x, y; // Coordenadas x e y en el tablero
+    pid_t player_pid; // Identificador de proceso
+    bool isBlocked; // Indica si el jugador está bloqueado
+} player_t;
+
+typedef struct {
+    unsigned short width; // Ancho del tablero
+    unsigned short height; // Alto del tablero
+    unsigned int playerCount; // Cantidad de jugadores
+    player_t players[9]; // Lista de jugadores
+    bool gameFinished; // Indica si el juego se ha terminado
+    int board[]; // Puntero al comienzo del tablero. fila-0, fila-1, ..., fila-n-1
+} game_t;
+
+typedef struct {
+    sem_t printNeeded; // El máster le indica a la vista que hay cambios por imprimir
+    sem_t printDone; // La vista le indica al máster que terminó de imprimir
+    sem_t masterMutex; // Mutex para evitar inanición del máster al acceder al estado
+    sem_t gameMutex; // Mutex para el estado del juego
+    sem_t readersMutex; // Mutex para la siguiente variable
+    unsigned int readersCount; // Cantidad de jugadores leyendo el estado
+    sem_t playerTurn[9]; // Le indican a cada jugador que puede enviar 1 movimiento
+} game_sync;
+
+#endif // UTILS_H
