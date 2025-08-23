@@ -3,8 +3,8 @@ CFLAGS = -std=gnu99 -Wall -Wextra -g
 LDFLAGS = -lrt -lpthread -lm
 
 # fuentes
-OBJS_VIEW = view.o utils/utils.o
-OBJS_PRUEBA = player_prueba.o utils/utils.o
+OBJS_VIEW = src/view.o src/utils.o
+OBJS_PRUEBA = src/player_prueba.o src/utils.o
 
 all: view player_prueba
 
@@ -14,10 +14,17 @@ view: $(OBJS_VIEW)
 player_prueba: $(OBJS_PRUEBA)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-%.o: %.c
+src/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-clean:
-	rm -f *.o utils/*.o view player_prueba
+# Compilar y correr tests
+test: src/tests/test_utils
+	./src/tests/test_utils
 
-.PHONY: all
+src/tests/test_utils: src/tests/test_utils.c src/utils.c src/tests/cutest/CuTest.c
+	$(CC) -Isrc/include -Isrc/tests/cutest -o src/tests/test_utils src/tests/test_utils.c src/utils.c src/tests/cutest/CuTest.c
+
+clean:
+	rm -f src/*.o view player_prueba src/tests/test_utils
+
+.PHONY: all test clean
