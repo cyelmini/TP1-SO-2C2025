@@ -1,10 +1,13 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include <fcntl.h>
 #include <semaphore.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <sys/mman.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 typedef struct {
 	char name[16];			   // Nombre del jugador
@@ -34,5 +37,9 @@ typedef struct {
 	unsigned int readersCount; // Cantidad de jugadores leyendo el estado
 	sem_t playerTurn[9];	   // Le indican a cada jugador que puede enviar 1 movimiento
 } game_sync;
+
+int open_shared_memory(const char *name, int oflag, mode_t mode);
+void *map_shared_memory(int fd, size_t size, int prot, int flags);
+void close_and_unmap(void *addr, size_t size, int fd);
 
 #endif // UTILS_H
