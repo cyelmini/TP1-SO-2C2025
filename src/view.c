@@ -79,17 +79,9 @@ int main(int argc, char *argv[]) {
 	int width = atoi(argv[1]);
 	int height = atoi(argv[2]);
 
-	int fd_game = open_shared_memory(SHM_GAME, O_RDONLY, 0);
-	size_t game_size = sizeof(game_t) + sizeof(int) * width * height;
-	game_t *game = map_shared_memory(fd_game, game_size, PROT_READ, MAP_SHARED);
-	
-	int fd_sync = open_shared_memory(SHM_SYNC, O_RDWR, 0);
-	game_sync *sync = map_shared_memory(fd_sync, sizeof(game_sync), PROT_READ | PROT_WRITE, MAP_SHARED);
-	game_sync *sync = mmap(NULL, sizeof(game_sync), PROT_READ | PROT_WRITE, MAP_SHARED, fd_sync, 0);
-	if (sync == MAP_FAILED) {
-		perror("mmap sync");
-		exit(EXIT_FAILURE);
-	}
+	game_t *game =
+		open_and_map(SHM_GAME, O_RDONLY, 0, sizeof(game_t) + sizeof(int) * width * height, PROT_READ, MAP_SHARED);
+	game_sync *sync = open_and_map(SHM_SYNC, O_RDWR, 0, sizeof(game_sync), PROT_READ | PROT_WRITE, MAP_SHARED);
 
 	while (!game->gameFinished) {
 		sem_wait(&sync->printNeeded);
@@ -118,9 +110,8 @@ int main(int argc, char *argv[]) {
 		sem_post(&sync->printDone);
 	}
 
-	munmap(game, game_size);
-	munmap(sync, sizeof(game_sync));
-	close(fd_game);
-	close(fd_sync);
+	close_and_unmap(SHM_GAME, game, sizeof(game_t) + sizeof(int) * width * height, 0);
+	close_and_unmap(SHM_SYNC, sync, sizeof(game_sync), 0);
+
 	return 0;
 }

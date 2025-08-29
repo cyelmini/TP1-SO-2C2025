@@ -1,15 +1,15 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#include <stdlib.h>
 #include <fcntl.h>
 #include <semaphore.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <sys/stat.h>
 
 #define SHM_GAME "/game_state"
 #define SHM_SYNC "/game_sync"
@@ -43,8 +43,7 @@ typedef struct {
 	sem_t playerTurn[9];	   // Le indican a cada jugador que puede enviar 1 movimiento
 } game_sync;
 
-int open_shared_memory(const char *name, int oflag, mode_t mode);
-void *map_shared_memory(int fd, size_t size, int prot, int flags);
-void close_and_unmap(void *addr, size_t size, int fd);
+void *open_and_map(const char *name, int oflags, mode_t mode, size_t size, int prot, int flags);
+void close_and_unmap(char *name, void *addr, size_t size, bool unlink);
 
 #endif // UTILS_H
