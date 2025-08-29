@@ -1,6 +1,7 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include <stdlib.h>
 #include <fcntl.h>
 #include <semaphore.h>
 #include <stdbool.h>
@@ -8,6 +9,10 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <sys/stat.h>
+
+#define SHM_GAME "/game_state"
+#define SHM_SYNC "/game_sync"
 
 typedef struct {
 	char name[16];			   // Nombre del jugador

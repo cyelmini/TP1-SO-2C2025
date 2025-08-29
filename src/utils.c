@@ -1,9 +1,6 @@
 #include "include/utils.h"
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/mman.h>
-#include <unistd.h>
+
+void* open_and_map(const char *name, int oflag, )
 
 int open_shared_memory(const char *name, int oflag, mode_t mode) {
 	int fd = shm_open(name, oflag, mode);

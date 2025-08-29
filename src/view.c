@@ -1,15 +1,4 @@
 #include "./include/utils.h"
-#include <fcntl.h>
-#include <semaphore.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <unistd.h>
-
-#define SHM_GAME "/game_state"
-#define SHM_SYNC "/game_sync"
 
 #define RESET "\x1B[0m"
 #define BOLD "\x1B[1m"
@@ -90,25 +79,12 @@ int main(int argc, char *argv[]) {
 	int width = atoi(argv[1]);
 	int height = atoi(argv[2]);
 
-	int fd_game = shm_open(SHM_GAME, O_RDONLY, 0);
-	if (fd_game == -1) {
-		perror("shm_open game");
-		exit(EXIT_FAILURE);
-	}
-
+	int fd_game = open_shared_memory(SHM_GAME, O_RDONLY, 0);
 	size_t game_size = sizeof(game_t) + sizeof(int) * width * height;
-	game_t *game = mmap(NULL, game_size, PROT_READ, MAP_SHARED, fd_game, 0);
-	if (game == MAP_FAILED) {
-		perror("mmap game");
-		exit(EXIT_FAILURE);
-	}
-
-	int fd_sync = shm_open(SHM_SYNC, O_RDWR, 0);
-	if (fd_sync == -1) {
-		perror("shm_open sync");
-		exit(EXIT_FAILURE);
-	}
-
+	game_t *game = map_shared_memory(fd_game, game_size, PROT_READ, MAP_SHARED);
+	
+	int fd_sync = open_shared_memory(SHM_SYNC, O_RDWR, 0);
+	game_sync *sync = map_shared_memory(fd_sync, sizeof(game_sync), PROT_READ | PROT_WRITE, MAP_SHARED);
 	game_sync *sync = mmap(NULL, sizeof(game_sync), PROT_READ | PROT_WRITE, MAP_SHARED, fd_sync, 0);
 	if (sync == MAP_FAILED) {
 		perror("mmap sync");
