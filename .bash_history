@@ -26,3 +26,5 @@ ls -l ./TP1-SO-2C2025/player_prueba.c
 sudo ./ChompChamps -w 10 -h 10 -v ./view -p ./player_prueba
 ./ChompChamps -w 10 -h 10 -v ./view -p ./player_prueba
 exit
+make all
+exit
