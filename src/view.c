@@ -80,8 +80,8 @@ int main(int argc, char *argv[]) {
 	int height = atoi(argv[2]);
 
 	game_t *game =
-		open_and_map(SHM_GAME, O_RDONLY, 0, sizeof(game_t) + sizeof(int) * width * height, PROT_READ, MAP_SHARED);
-	game_sync *sync = open_and_map(SHM_SYNC, O_RDWR, 0, sizeof(game_sync), PROT_READ | PROT_WRITE, MAP_SHARED);
+		open_and_map(SHM_GAME, O_RDONLY, sizeof(game_t) + sizeof(int) * width * height, PROT_READ, MAP_SHARED);
+	game_sync *sync = open_and_map(SHM_SYNC, O_RDWR, sizeof(game_sync), PROT_READ | PROT_WRITE, MAP_SHARED);
 
 	while (!game->gameFinished) {
 		sem_wait(&sync->printNeeded);

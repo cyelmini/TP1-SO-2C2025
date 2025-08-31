@@ -1,7 +1,7 @@
 #include "include/utils.h"
 
-void *open_and_map(const char *name, int oflags, mode_t mode, size_t size, int prot, int flags) {
-	int fd = shm_open(name, oflags, mode);
+void *open_and_map(const char *name, int oflags, size_t size, int prot, int flags) {
+	int fd = shm_open(name, oflags, 0666);
 	if (fd == -1) {
 		perror("shm_open");
 		exit(EXIT_FAILURE);
@@ -12,7 +12,7 @@ void *open_and_map(const char *name, int oflags, mode_t mode, size_t size, int p
 		perror("mmap");
 		exit(EXIT_FAILURE);
 	}
-
+	close(fd);
 	return addr;
 }
 

@@ -19,7 +19,7 @@
 .idea/
 
 # Archivos binarios generados
-player_prueba
+player
 view
 
 # Ignorar el propio gitignore

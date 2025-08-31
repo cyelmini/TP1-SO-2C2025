@@ -43,7 +43,7 @@ typedef struct {
 	sem_t playerTurn[9];	   // Le indican a cada jugador que puede enviar 1 movimiento
 } game_sync;
 
-void *open_and_map(const char *name, int oflags, mode_t mode, size_t size, int prot, int flags);
+void *open_and_map(const char *name, int oflags, size_t size, int prot, int flags);
 void close_and_unmap(char *name, void *addr, size_t size, bool unlink);
 
 #endif // UTILS_H
