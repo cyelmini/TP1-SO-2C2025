@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
     int width  = atoi(argv[1]);
     int height = atoi(argv[2]);
 
-    // Mapear memoria compartida 
+    // Mapear memoria compartida
     game_t *game = (game_t *)open_and_map(SHM_GAME, O_RDONLY, sizeof(game_t) + sizeof(int) * width * height, PROT_READ, MAP_SHARED);
     game_sync *sync = (game_sync *)open_and_map(SHM_SYNC, O_RDWR, sizeof(game_sync), PROT_READ | PROT_WRITE, MAP_SHARED);
 
@@ -85,11 +85,6 @@ int main(int argc, char *argv[]) {
     while (!game->gameFinished && !game->players[my_id].isBlocked) {
         // Esperar turno
         sem_wait(&sync->playerTurn[my_id]);
-
-        // Puede haber terminado mientras esperaba turno
-        if (game->gameFinished || game->players[my_id].isBlocked) {
-			break;
-		}
 
         // Ver si el master quiere escribir
         sem_wait(&sync->masterMutex);

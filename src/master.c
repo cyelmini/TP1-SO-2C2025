@@ -15,6 +15,6 @@ int main (int argc, char *argv[]){
     int player_count;
     handle_params(argc, argv, &width, &height, &delay, &timeout, &seed, &view_path, &players, player_count);
 
-    
+    // Recordar: limpiar todos los recursos del sistema (memoria compartida, pipes y procesos), hacer un sleep antes del return 
 
 }
