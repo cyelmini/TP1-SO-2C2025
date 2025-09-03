@@ -82,6 +82,8 @@ int main(int argc, char *argv[]) {
 	game_t *game = open_and_map(SHM_GAME, O_RDONLY, sizeof(game_t) + sizeof(int) * width * height, PROT_READ, MAP_SHARED);
 	game_sync *sync = open_and_map(SHM_SYNC, O_RDWR, sizeof(game_sync), PROT_READ | PROT_WRITE, MAP_SHARED);
 
+	
+
 	// chequear despues si el gameFinished es necesario
 	while (!game->gameFinished) {
 		sem_wait(&sync->printNeeded);
