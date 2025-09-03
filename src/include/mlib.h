@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <unistd.h>
 
 #define DEFAULT_WIDTH 10
 #define DEFAULT_HEIGHT 10
@@ -15,6 +16,7 @@
 #define MIN_PLAYERS 1
 #define MAX_PLAYERS 9
 
+void check_invalid(const char *c);
 void handle_params(int argc, char *argv[], int *width, int *height, int *delay,int *timeout, int *seed, char **view_path, char **players, int *player_count);
     
 
