@@ -1,27 +1,41 @@
 #include "include/mlib.h"
 #include "include/utils.h"
+#include <string.h>
+#include <semaphore.h>
+#include <stdio.h>
+#include <stdlib.h>
 
+static const int DIRS[8][2] = {
+    { 0,-1}, { 1,-1}, { 1, 0}, { 1, 1},
+    { 0, 1}, {-1, 1}, {-1, 0}, {-1,-1}
+};
 
 void initialize_board(unsigned short width, unsigned short height, int board[], int seed){
     srand(seed);
     for(unsigned short i = 0; i < height; i++){
         for(unsigned short j = 0; j < width; j++){
-            board[i * width + j] = rand() % 9 + 1; // Números entre 1 y 9
+            board[i * width + j] = rand() % 9 + 1;
         }
     }
 }
 
-pid_t initialize_game(game_t *game, unsigned short width, unsigned short height, int player_count, int seed, char **players){
+pid_t initialize_game(game_t *game, unsigned short width, unsigned short height, int player_count, int seed, char **players, char *view, int pipe_fd[][2]){
     game->width = width;
     game->height = height;
     game->playerCount = player_count;
-    game->gameFinished = false;
+    game->gameFinished = 0;
     initialize_board(game->width, game->height, game->board, seed);
-    initialize_players(game, players);
-    return 1; //esto esta obviamente mal lo dejo asi porque no llegue a la vista
+    return initialize_players_and_view(game, players, view, pipe_fd);
 }
 
-void initialize_players(game_t *game, char **players){ //hace falta aun distribuirlos en el espacio x y
+pid_t initialize_players_and_view(game_t *game, char **players, char *view, int pipe_fd[][2]){
+    char width[16];
+    char height[16];
+    sprintf(width,"%d", game->width); 
+    sprintf(height,"%d", game->height);
+    char * argv[4] = {NULL, width, height, NULL}; 
+
+    // Lanzar jugadores
     for(unsigned int i = 0; i < game->playerCount; i++){
         snprintf(game->players[i].name, sizeof(game->players[i].name), "%s", players[i]);
         game->players[i].score = 0;
@@ -29,9 +43,55 @@ void initialize_players(game_t *game, char **players){ //hace falta aun distribu
         game->players[i].validMoves = 0;
         game->players[i].x = (i * game->width) / game->playerCount; 
         game->players[i].y = (i * game->height) / game->playerCount;
-        game->players[i].isBlocked = false;
-        game->players[i].player_pid = 0; 
+        game->players[i].isBlocked = 0;
+
+        pid_t pid = fork();
+        if(pid < 0){
+            fprintf(stderr, "ERROR: fork");
+            exit(EXIT_FAILURE);
+
+        } else if(pid == 0){ // hijo
+            // Close all unused pipe ends
+            for (unsigned int j = 0; j < game->playerCount; j++) {
+                if (j != i) {
+                    close(pipe_fd[j][READ_END]);
+                    close(pipe_fd[j][WRITE_END]);
+                }
+            }
+            // Close read end of this player's pipe
+            close(pipe_fd[i][READ_END]);
+            // Redirect stdout to this player's write end
+            dup2(pipe_fd[i][WRITE_END], STDOUT_FILENO);
+            close(pipe_fd[i][WRITE_END]);
+
+            argv[0] = game->players[i].name;
+            if(execve(game->players[i].name, argv, NULL) == -1){
+                fprintf(stderr, "ERROR: execve");
+                exit(EXIT_FAILURE);
+            }
+        }else{ // padre
+            game->players[i].player_pid = pid;
+            close(pipe_fd[i][WRITE_END]);
+        }
     }
+
+    // Lanzar vista
+    pid_t pid_view = -1;
+    if(view != NULL){
+        argv[0]= view;
+        pid_view = fork();
+
+        if(pid_view < 0){
+            fprintf(stderr, "ERROR: fork");
+            exit(EXIT_FAILURE);
+        }else if( pid_view == 0 ){
+            if(execve(view, argv, NULL) == -1){
+                fprintf(stderr, "ERROR: execve");
+                exit(EXIT_FAILURE);
+            }
+        }
+    }
+    return pid_view;
 }
 
 void initialize_sems(game_sync *sync){
@@ -41,7 +101,7 @@ void initialize_sems(game_sync *sync){
     sem_init(&sync->gameMutex, 1, 1);
     sem_init(&sync->readersMutex, 1, 1);
     sync->readersCount = 0;
-    for (int i = 0; i < 9; i++) {
+    for (int i = 0; i < MAX_PLAYERS; i++) {
         sem_init(&sync->playerTurn[i], 1, 0);
     }
 }
@@ -127,3 +187,26 @@ void handle_params(int argc, char *argv[], unsigned short *width, unsigned short
     }
 }
 
+int validate_and_apply_move(game_t *game, unsigned int idx, unsigned char move){
+    if(move > 7) return 0;
+    int nx = game->players[idx].x + DIRS[move][0];
+    int ny = game->players[idx].y + DIRS[move][1];
+
+    if(nx < 0 || nx >= game->width || ny < 0 || ny >= game->height) return 0;
+
+    int pos = ny * game->width + nx;
+    if(game->board[pos] <= 0) return 0;
+
+    for(unsigned int i = 0; i < game->playerCount; i++){
+        if(i != idx && !game->players[i].isBlocked && game->players[i].x == nx && game->players[i].y == ny){
+            return 0;
+        }
+    }
+
+    game->players[idx].x = nx;
+    game->players[idx].y = ny;
+    game->players[idx].score += game->board[pos];
+    game->board[pos] = -idx;
+
+    return 1;
+}

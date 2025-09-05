@@ -21,6 +21,7 @@
 # Archivos binarios generados
 player
 view
+master
 
 # Ignorar el propio gitignore
 !.gitignore
