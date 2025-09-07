@@ -25,8 +25,8 @@ int main (int argc, char *argv[]){
     sleep(3);
 
     //Crear memoria compartida
-    game_t *game = open_and_map(SHM_GAME, O_CREAT | O_RDWR, sizeof(game_t) + width * height * sizeof(int), PROT_READ | PROT_WRITE, MAP_SHARED);
-    game_sync *sync = open_and_map(SHM_SYNC, O_CREAT | O_RDWR, sizeof(game_sync), PROT_READ | PROT_WRITE, MAP_SHARED);
+    game_t *game = (game_t *)open_and_map(SHM_GAME, O_CREAT | O_RDWR, sizeof(game_t) + width * height * sizeof(int), PROT_READ | PROT_WRITE, MAP_SHARED);
+    game_sync *sync = (game_sync *)open_and_map(SHM_SYNC, O_CREAT | O_RDWR, sizeof(game_sync), PROT_READ | PROT_WRITE, MAP_SHARED);
     initialize_sems(sync);
 
     // Creacion de pipes

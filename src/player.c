@@ -65,7 +65,7 @@ int main(int argc, char *argv[]) {
     int height = atoi(argv[2]);
 
     // Mapear memoria compartida
-    game_t *game = (game_t *)open_and_map(SHM_GAME, O_RDONLY, sizeof(game_t) + sizeof(int) * width * height, PROT_READ, MAP_SHARED);
+    game_t *game = (game_t *) open_and_map(SHM_GAME, O_RDONLY, sizeof(game_t)+sizeof(int)*width*height, PROT_READ, MAP_SHARED);
     game_sync *sync = (game_sync *)open_and_map(SHM_SYNC, O_RDWR, sizeof(game_sync), PROT_READ | PROT_WRITE, MAP_SHARED);
 
     // Identificar pid
