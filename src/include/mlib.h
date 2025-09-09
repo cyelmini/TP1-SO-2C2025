@@ -31,5 +31,6 @@ pid_t initialize_game(game_t *game, unsigned short width, unsigned short height,
 					  char **players, char *view, int pipe_fd[][2]);
 pid_t initialize_players_and_view(game_t *game, char **players, char *view, int pipe_fd[][2]);
 int validate_and_apply_move(game_t *game, unsigned int idx, unsigned char move);
+void playChompChamps(game_t *game, game_sync *sync, int pipe_fd[MAX_PLAYERS][2], unsigned int player_count, int max_fd, int delay, int timeout, char *view);
 
 #endif // MLIB_H

@@ -212,3 +212,85 @@ int validate_and_apply_move(game_t *game, unsigned int idx, unsigned char move) 
 
 	return 1;
 }
+
+void playChompChamps(game_t *game, game_sync *sync, int pipe_fd[MAX_PLAYERS][2], unsigned int player_count, int max_fd, int delay, int timeout, char *view) {
+	fd_set read_fd;
+	struct timeval tv;
+	int round_robin_start = 0;
+	time_t last_valid_move = time(NULL);
+
+	while (!game->gameFinished) {
+		for (unsigned int i = 0; i < player_count; i++) {
+			if (!game->players[i].isBlocked) {
+				sem_post(&sync->playerTurn[i]);
+			}
+		}
+
+		FD_ZERO(&read_fd);
+		for (unsigned i = 0; i < player_count; i++) {
+			FD_SET(pipe_fd[i][READ_END], &read_fd);
+		}
+
+		tv.tv_sec = timeout;
+		tv.tv_usec = 0;
+
+		int ready = select(max_fd + 1, &read_fd, NULL, NULL, &tv);
+		if (ready == -1) {
+			fprintf(stderr, "error select.\n");
+			exit(EXIT_FAILURE);
+		}
+		else if (ready == 0) {
+			fprintf(stderr, "timeout select.\n");
+			break;
+		}
+
+		int valid_move_this_round = 0;
+
+		for (unsigned int j = 0; j < player_count; j++) {
+			int idx = (round_robin_start + j) % player_count;
+
+			if (!game->players[idx].isBlocked && FD_ISSET(pipe_fd[idx][READ_END], &read_fd)) {
+				unsigned char move;
+				ssize_t n = read(pipe_fd[idx][READ_END], &move, sizeof(unsigned char));
+				if (n <= 0) {
+					game->players[idx].isBlocked = 1;
+				}
+				else {
+					sem_wait(&sync->masterMutex);
+
+					int valid = validate_and_apply_move(game, idx, move);
+					if (valid) {
+						game->players[idx].validMoves++;
+						last_valid_move = time(NULL);
+						valid_move_this_round = 1;
+					}
+					else {
+						game->players[idx].invalidMoves++;
+					}
+
+					sem_post(&sync->masterMutex);
+
+					if (view != NULL) {
+						sem_post(&sync->printNeeded);
+						sem_wait(&sync->printDone);
+						usleep(delay * 1000);
+					}
+				}
+			}
+		}
+		round_robin_start++;
+
+		int blocked = 0;
+		for (unsigned int i = 0; i < player_count; i++) {
+			if (game->players[i].isBlocked)
+				blocked++;
+		}
+		if (blocked == (int) player_count) {
+			game->gameFinished = true;
+		}
+
+		if (!valid_move_this_round && (time(NULL) - last_valid_move) >= timeout) {
+			game->gameFinished = true;
+		}
+	}
+}
