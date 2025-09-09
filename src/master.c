@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	playChompChamps(game, sync, pipe_fd, player_count, max_fd, delay, timeout, view);
-	
+
 	if (view != NULL) {
 		sem_post(&sync->printNeeded);
 		int status;
@@ -84,6 +84,6 @@ int main(int argc, char *argv[]) {
 
 	close_and_unmap(SHM_GAME, game, sizeof(game_t) + sizeof(int) * width * height, true);
 	close_and_unmap(SHM_SYNC, sync, sizeof(game_sync), true);
-	
+
 	return 0;
 }

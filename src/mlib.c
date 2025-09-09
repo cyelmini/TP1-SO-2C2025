@@ -51,17 +51,17 @@ pid_t initialize_players_and_view(game_t *game, char **players, char *view, int 
 			fprintf(stderr, "ERROR: fork");
 			exit(EXIT_FAILURE);
 		}
-		else if (pid == 0) { // hijo
-			// Close all unused pipe ends
+		else if (pid == 0) { // Hijo
+			// Cerrar todas las pipe ends no usadas 
 			for (unsigned int j = 0; j < game->playerCount; j++) {
 				if (j != i) {
 					close(pipe_fd[j][READ_END]);
 					close(pipe_fd[j][WRITE_END]);
 				}
 			}
-			// Close read end of this player's pipe
+			// Cerrar read end del pipe de este player
 			close(pipe_fd[i][READ_END]);
-			// Redirect stdout to this player's write end
+			// Redirigir stdout al write de este player 
 			dup2(pipe_fd[i][WRITE_END], STDOUT_FILENO);
 			close(pipe_fd[i][WRITE_END]);
 
@@ -71,7 +71,7 @@ pid_t initialize_players_and_view(game_t *game, char **players, char *view, int 
 				exit(EXIT_FAILURE);
 			}
 		}
-		else { // padre
+		else { // Padre
 			game->players[i].player_pid = pid;
 			close(pipe_fd[i][WRITE_END]);
 		}
@@ -216,7 +216,8 @@ int validate_and_apply_move(game_t *game, unsigned int idx, unsigned char move) 
 	return 1;
 }
 
-void playChompChamps(game_t *game, game_sync *sync, int pipe_fd[MAX_PLAYERS][2], unsigned int player_count, int max_fd, int delay, int timeout, char *view) {
+void playChompChamps(game_t *game, game_sync *sync, int pipe_fd[MAX_PLAYERS][2], unsigned int player_count, int max_fd,
+					 int delay, int timeout, char *view) {
 	fd_set read_fd;
 	struct timeval tv;
 	int round_robin_start = 0;
