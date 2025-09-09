@@ -1,3 +1,6 @@
+// This is a personal academic project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++, C#, and Java: https://pvs-studio.com
+
 #include "include/utils.h"
 
 void *open_and_map(const char *name, int oflags, size_t size, int prot, int flags) {

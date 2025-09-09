@@ -1,3 +1,6 @@
+// This is a personal academic project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++, C#, and Java: https://pvs-studio.com
+
 #include "include/mlib.h"
 #include "include/utils.h"
 
@@ -16,7 +19,7 @@ int main(int argc, char *argv[]) {
 
 	handle_params(argc, argv, &width, &height, &delay, &timeout, &seed, &view, players, &player_count);
 
-	printf("width: %d\nheight: %d\ndelay: %d\ntimeout: %d\nseed: %d\nview: %s\nnum_players: %d\n", width, height, delay,
+	printf("width: %d\nheight: %d\ndelay: %d\ntimeout: %d\nseed: %d\nview: %s\nnum_players: %u\n", width, height, delay,
 		   timeout, seed, view == NULL ? "-" : view, player_count);
 	for (unsigned int i = 0; i < player_count; i++) {
 		printf("\t%s\n", players[i]);
@@ -64,7 +67,7 @@ int main(int argc, char *argv[]) {
 	for (unsigned int i = 0; i < player_count; i++) {
 		int status;
 		waitpid(game->players[i].player_pid, &status, 0);
-		printf("Jugador %d terminó con código %d, puntaje %d / %d / %d\n", i, WEXITSTATUS(status),
+		printf("Jugador %u terminó con código %d, puntaje %u / %u / %u\n", i, WEXITSTATUS(status),
 			   game->players[i].score, game->players[i].validMoves, game->players[i].invalidMoves);
 		close(pipe_fd[i][READ_END]);
 		close(pipe_fd[i][WRITE_END]);
@@ -82,6 +85,5 @@ int main(int argc, char *argv[]) {
 	close_and_unmap(SHM_GAME, game, sizeof(game_t) + sizeof(int) * width * height, true);
 	close_and_unmap(SHM_SYNC, sync, sizeof(game_sync), true);
 	
-	sleep(1);
 	return 0;
 }
