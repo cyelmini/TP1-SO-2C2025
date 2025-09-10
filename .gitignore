@@ -1,3 +1,6 @@
+# Historial de la terminal
+.bash_history
+
 # Archivos y directorios de compilación
 *.o
 *.out
@@ -22,6 +25,12 @@
 player
 view
 master
+
+# Archivos generados por PVS-Studio
+PVS-Studio.log
+report.html
+report.tasks
+strace_out
 
 # Ignorar el propio gitignore
 !.gitignore
