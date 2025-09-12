@@ -10,7 +10,7 @@ static game_t *game_ptr = NULL;
 static game_sync *sync_ptr = NULL;
 static unsigned short g_width = 0;
 static unsigned short g_height = 0;
-static int (*g_pipe_fd)[2] = NULL;
+static int g_pipe_fd[MAX_PLAYERS][2];
 static unsigned int g_player_count = 0;
 
 static void cleanup(int signo) {
@@ -62,18 +62,18 @@ int main(int argc, char *argv[]) {
 	g_width = width;
 	g_height = height;
 	g_player_count = player_count;
-	g_pipe_fd = pipe_fd;
 
 	// Registrar cleanup con signal
 	signal(SIGINT, cleanup);
 	signal(SIGTERM, cleanup);
-	signal(SIGQUIT, cleanup);
 
 	for (unsigned int i = 0; i < player_count; i++) {
 		if (pipe(pipe_fd[i]) == -1) {
 			fprintf(stderr, "pipe error");
 			exit(EXIT_FAILURE);
 		}
+		g_pipe_fd[i][0] = pipe_fd[i][0];
+		g_pipe_fd[i][1] = pipe_fd[i][1];
 	}
 
 	pid_t view_pid = initialize_game(game, width, height, player_count, seed, players, view, pipe_fd);
