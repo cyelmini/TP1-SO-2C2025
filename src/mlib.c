@@ -240,7 +240,7 @@ void playChompChamps(game_t *game, game_sync *sync, int pipe_fd[MAX_PLAYERS][2],
 
 		int ready = select(max_fd + 1, &read_fd, NULL, NULL, &tv);
 		if (ready == -1) {
-			fprintf(stderr, "error select.\n");
+			fprintf(stderr, "ERROR: select\n");
 			exit(EXIT_FAILURE);
 		}
 		else if (ready == 0) {
@@ -296,5 +296,61 @@ void playChompChamps(game_t *game, game_sync *sync, int pipe_fd[MAX_PLAYERS][2],
 		if (!valid_move_this_round && (time(NULL) - last_valid_move) >= timeout) {
 			game->gameFinished = true;
 		}
+	}
+}
+
+void calculate_winner(game_t *game, int player_count) {
+	int winner_count=1;
+	int winners[MAX_PLAYERS];
+	winners[0] = 0;
+	unsigned int best_score = game->players[0].score;
+    unsigned int best_valid_moves = game->players[0].validMoves;
+    unsigned int best_invalid_moves = game->players[0].invalidMoves;
+
+	for (int i = 1; i<player_count; i++){
+		if(game->players[i].score > best_score){
+			best_score = game->players[i].score;
+			best_valid_moves = game->players[i].validMoves;
+			best_invalid_moves = game->players[i].invalidMoves;
+			winner_count = 1;
+			winners[0] = i;
+		}else if(game->players[i].score == best_score){
+			if(game->players[i].validMoves < best_valid_moves){
+				best_valid_moves = game->players[i].validMoves;
+				best_invalid_moves = game->players[i].invalidMoves;
+				winner_count = 1;
+				winners[0] = i;
+			}else if(game->players[i].validMoves == best_valid_moves){
+				if(game->players[i].invalidMoves < best_invalid_moves){
+					best_invalid_moves = game->players[i].invalidMoves;
+					winner_count = 1;
+					winners[0] = i;
+				}else if (game->players[i].invalidMoves == best_invalid_moves)
+				{
+					winner_count++;
+					winners[winner_count - 1] = i;
+				}
+				
+			}
+		}
+	}
+	if(winner_count == 1){
+		printf("\nEl ganador es Jugador %u :%s\n", winners[0], game->players[winners[0]].name);
+	} else {
+		printf("\nHay un empate entre %d jugadores:\n", winner_count);
+		for(int i = 0; i < winner_count; i++){
+			printf("\tJugador %u : %s\n", winners[i], game->players[winners[i]].name);
+		}
+	}
+}
+
+void destroy_semaphones(game_sync * sync){
+	sem_destroy(&sync->printNeeded);
+	sem_destroy(&sync->printDone);
+	sem_destroy(&sync->masterMutex);
+	sem_destroy(&sync->gameMutex);
+	sem_destroy(&sync->readersMutex);
+	for (int i = 0; i < MAX_PLAYERS; i++) {
+		sem_destroy(&sync->playerTurn[i]);
 	}
 }

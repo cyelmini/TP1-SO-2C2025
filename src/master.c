@@ -71,16 +71,13 @@ int main(int argc, char *argv[]) {
 			   game->players[i].score, game->players[i].validMoves, game->players[i].invalidMoves);
 		close(pipe_fd[i][READ_END]);
 		close(pipe_fd[i][WRITE_END]);
-	}
 
-	sem_destroy(&sync->printNeeded);
-	sem_destroy(&sync->printDone);
-	sem_destroy(&sync->masterMutex);
-	sem_destroy(&sync->gameMutex);
-	sem_destroy(&sync->readersMutex);
-	for (int i = 0; i < MAX_PLAYERS; i++) {
-		sem_destroy(&sync->playerTurn[i]);
 	}
+	
+	calculate_winner(game, player_count);
+
+
+	destroy_semaphones(sync);
 
 	close_and_unmap(SHM_GAME, game, sizeof(game_t) + sizeof(int) * width * height, true);
 	close_and_unmap(SHM_SYNC, sync, sizeof(game_sync), true);
