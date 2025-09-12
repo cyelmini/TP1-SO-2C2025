@@ -3,6 +3,29 @@
 
 #include "include/mlib.h"
 #include "include/utils.h"
+#include <signal.h>
+
+// Variables globales para acceso en cleanup
+static game_t *game_ptr = NULL;
+static game_sync *sync_ptr = NULL;
+static unsigned short g_width = 0;
+static unsigned short g_height = 0;
+static int (*g_pipe_fd)[2] = NULL;
+static unsigned int g_player_count = 0;
+
+static void cleanup(int signo) {
+	for (unsigned int i = 0; i < g_player_count; i++) {
+		close(g_pipe_fd[i][0]);
+		close(g_pipe_fd[i][1]);
+	}
+	destroy_semaphones(sync_ptr);
+
+	close_and_unmap(SHM_GAME, game_ptr, sizeof(game_t) + sizeof(int) * g_width * g_height, true);
+	close_and_unmap(SHM_SYNC, sync_ptr, sizeof(game_sync), true);
+
+	fprintf(stderr, "\nEl programa termino con la señal %d.\n", signo);
+	_exit(EXIT_FAILURE);
+}
 
 int main(int argc, char *argv[]) {
 	if (argc < 3) {
@@ -33,6 +56,18 @@ int main(int argc, char *argv[]) {
 		(game_sync *) open_and_map(SHM_SYNC, O_CREAT | O_RDWR, sizeof(game_sync), PROT_READ | PROT_WRITE, MAP_SHARED);
 
 	initialize_sems(sync);
+
+	game_ptr = game;
+	sync_ptr = sync;
+	g_width = width;
+	g_height = height;
+	g_player_count = player_count;
+	g_pipe_fd = pipe_fd;
+
+	// Registrar cleanup con signal
+	signal(SIGINT, cleanup);
+	signal(SIGTERM, cleanup);
+	signal(SIGQUIT, cleanup);
 
 	for (unsigned int i = 0; i < player_count; i++) {
 		if (pipe(pipe_fd[i]) == -1) {
@@ -71,16 +106,16 @@ int main(int argc, char *argv[]) {
 			   game->players[i].score, game->players[i].validMoves, game->players[i].invalidMoves);
 		close(pipe_fd[i][READ_END]);
 		close(pipe_fd[i][WRITE_END]);
-
 	}
-	
+
 	calculate_winner(game, player_count);
 
-
 	destroy_semaphones(sync);
-
 	close_and_unmap(SHM_GAME, game, sizeof(game_t) + sizeof(int) * width * height, true);
 	close_and_unmap(SHM_SYNC, sync, sizeof(game_sync), true);
+
+	game_ptr = NULL;
+	sync_ptr = NULL;
 
 	return 0;
 }

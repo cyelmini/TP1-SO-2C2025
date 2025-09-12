@@ -52,7 +52,7 @@ pid_t initialize_players_and_view(game_t *game, char **players, char *view, int 
 			exit(EXIT_FAILURE);
 		}
 		else if (pid == 0) { // Hijo
-			// Cerrar todas las pipe ends no usadas 
+			// Cerrar todas las pipe ends no usadas
 			for (unsigned int j = 0; j < game->playerCount; j++) {
 				if (j != i) {
 					close(pipe_fd[j][READ_END]);
@@ -61,7 +61,7 @@ pid_t initialize_players_and_view(game_t *game, char **players, char *view, int 
 			}
 			// Cerrar read end del pipe de este player
 			close(pipe_fd[i][READ_END]);
-			// Redirigir stdout al write de este player 
+			// Redirigir stdout al write de este player
 			dup2(pipe_fd[i][WRITE_END], STDOUT_FILENO);
 			close(pipe_fd[i][WRITE_END]);
 
@@ -300,51 +300,53 @@ void playChompChamps(game_t *game, game_sync *sync, int pipe_fd[MAX_PLAYERS][2],
 }
 
 void calculate_winner(game_t *game, int player_count) {
-	int winner_count=1;
+	int winner_count = 1;
 	int winners[MAX_PLAYERS];
 	winners[0] = 0;
 	unsigned int best_score = game->players[0].score;
-    unsigned int best_valid_moves = game->players[0].validMoves;
-    unsigned int best_invalid_moves = game->players[0].invalidMoves;
+	unsigned int best_valid_moves = game->players[0].validMoves;
+	unsigned int best_invalid_moves = game->players[0].invalidMoves;
 
-	for (int i = 1; i<player_count; i++){
-		if(game->players[i].score > best_score){
+	for (int i = 1; i < player_count; i++) {
+		if (game->players[i].score > best_score) {
 			best_score = game->players[i].score;
 			best_valid_moves = game->players[i].validMoves;
 			best_invalid_moves = game->players[i].invalidMoves;
 			winner_count = 1;
 			winners[0] = i;
-		}else if(game->players[i].score == best_score){
-			if(game->players[i].validMoves < best_valid_moves){
+		}
+		else if (game->players[i].score == best_score) {
+			if (game->players[i].validMoves < best_valid_moves) {
 				best_valid_moves = game->players[i].validMoves;
 				best_invalid_moves = game->players[i].invalidMoves;
 				winner_count = 1;
 				winners[0] = i;
-			}else if(game->players[i].validMoves == best_valid_moves){
-				if(game->players[i].invalidMoves < best_invalid_moves){
+			}
+			else if (game->players[i].validMoves == best_valid_moves) {
+				if (game->players[i].invalidMoves < best_invalid_moves) {
 					best_invalid_moves = game->players[i].invalidMoves;
 					winner_count = 1;
 					winners[0] = i;
-				}else if (game->players[i].invalidMoves == best_invalid_moves)
-				{
+				}
+				else if (game->players[i].invalidMoves == best_invalid_moves) {
 					winner_count++;
 					winners[winner_count - 1] = i;
 				}
-				
 			}
 		}
 	}
-	if(winner_count == 1){
+	if (winner_count == 1) {
 		printf("\nEl ganador es Jugador %u :%s\n", winners[0], game->players[winners[0]].name);
-	} else {
+	}
+	else {
 		printf("\nHay un empate entre %d jugadores:\n", winner_count);
-		for(int i = 0; i < winner_count; i++){
+		for (int i = 0; i < winner_count; i++) {
 			printf("\tJugador %u : %s\n", winners[i], game->players[winners[i]].name);
 		}
 	}
 }
 
-void destroy_semaphones(game_sync * sync){
+void destroy_semaphones(game_sync *sync) {
 	sem_destroy(&sync->printNeeded);
 	sem_destroy(&sync->printDone);
 	sem_destroy(&sync->masterMutex);

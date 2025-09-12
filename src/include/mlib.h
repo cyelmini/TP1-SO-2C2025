@@ -37,7 +37,7 @@ int validate_and_apply_move(game_t *game, unsigned int idx, unsigned char move);
 void playChompChamps(game_t *game, game_sync *sync, int pipe_fd[MAX_PLAYERS][2], unsigned int player_count, int max_fd,
 					 int delay, int timeout, char *view);
 
-void destroy_semaphones(game_sync * sync);
+void destroy_semaphones(game_sync *sync);
 void calculate_winner(game_t *game, int player_count);
 
 #endif // MLIB_H
