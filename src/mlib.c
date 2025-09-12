@@ -10,6 +10,7 @@
 
 static const int DIRS[8][2] = {{0, -1}, {1, -1}, {1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-1, -1}};
 
+
 void initialize_board(unsigned short width, unsigned short height, int board[], int seed) {
 	srand(seed);
 	for (unsigned short i = 0; i < height; i++) {
@@ -19,7 +20,7 @@ void initialize_board(unsigned short width, unsigned short height, int board[], 
 	}
 }
 
-pid_t initialize_game(game_t *game, unsigned short width, unsigned short height, int player_count, int seed,
+pid_t initialize_game(game_t *game, unsigned short width, unsigned short height, unsigned int player_count, int seed,
 					  char **players, char *view, int pipe_fd[][2]) {
 	game->width = width;
 	game->height = height;
@@ -299,7 +300,7 @@ void playChompChamps(game_t *game, game_sync *sync, int pipe_fd[MAX_PLAYERS][2],
 	}
 }
 
-void calculate_winner(game_t *game, int player_count) {
+void calculate_winner(game_t *game, unsigned int player_count) {
 	int winner_count=1;
 	int winners[MAX_PLAYERS];
 	winners[0] = 0;
@@ -307,7 +308,7 @@ void calculate_winner(game_t *game, int player_count) {
     unsigned int best_valid_moves = game->players[0].validMoves;
     unsigned int best_invalid_moves = game->players[0].invalidMoves;
 
-	for (int i = 1; i<player_count; i++){
+	for (unsigned int i = 1; i<player_count; i++){
 		if(game->players[i].score > best_score){
 			best_score = game->players[i].score;
 			best_valid_moves = game->players[i].validMoves;
@@ -353,4 +354,22 @@ void destroy_semaphones(game_sync * sync){
 	for (int i = 0; i < MAX_PLAYERS; i++) {
 		sem_destroy(&sync->playerTurn[i]);
 	}
+}
+
+void cleanup(int signo) {
+    
+	printf("\nPrograma terminado por señal %d\n", signo);
+
+    // Cerrar pipes
+    for (unsigned int i = 0; i < global_player_count; i++) {
+        close(global_pipe_fd[i][READ_END]);
+        close(global_pipe_fd[i][WRITE_END]);
+    }
+
+    // Liberar semáforos y memoria compartida
+    destroy_semaphones(sync);
+    close_and_unmap(SHM_GAME, global_game, sizeof(game_t) + sizeof(int) * global_width * global_height, true);
+    close_and_unmap(SHM_SYNC, global_sync, sizeof(game_sync), true);
+
+    exit(EXIT_FAILURE);
 }
