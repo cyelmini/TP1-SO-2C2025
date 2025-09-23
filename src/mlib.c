@@ -213,7 +213,37 @@ int validate_and_apply_move(game_t *game, unsigned int idx, unsigned char move) 
 	game->players[idx].score += game->board[pos];
 	game->board[pos] = -idx;
 
+	if (!has_valid_moves(game, idx)) {
+		//sem_wait(&sync->masterMutex);
+        game->players[idx].isBlocked = 1;
+		//sem_post(&sync->masterMutex);
+    }
+
 	return 1;
+}
+
+
+int has_valid_moves(game_t *game, unsigned int idx) {
+    for (int dir = 0; dir < 8; dir++) {
+        int nx = game->players[idx].x + DIRS[dir][0];
+        int ny = game->players[idx].y + DIRS[dir][1];
+        if (nx >= 0 && nx < game->width && ny >= 0 && ny < game->height) {
+            int pos = ny * game->width + nx;
+            if (game->board[pos] > 0) {
+                // Verifica que no haya otro jugador en esa posición
+                int ocupado = 0;
+                for (unsigned int j = 0; j < game->playerCount; j++) {
+                    if (j != idx && !game->players[j].isBlocked &&
+                        game->players[j].x == nx && game->players[j].y == ny) {
+                        ocupado = 1;
+                        break;
+                    }
+                }
+                if (!ocupado) return 1;
+            }
+        }
+    }
+    return 0;
 }
 
 void playChompChamps(game_t *game, game_sync *sync, int pipe_fd[MAX_PLAYERS][2], unsigned int player_count, int max_fd,
@@ -223,17 +253,31 @@ void playChompChamps(game_t *game, game_sync *sync, int pipe_fd[MAX_PLAYERS][2],
 	int round_robin_start = 0;
 	time_t last_valid_move = time(NULL);
 
-	while (!game->gameFinished) {
-		for (unsigned int i = 0; i < player_count; i++) {
-			if (!game->players[i].isBlocked) {
-				sem_post(&sync->playerTurn[i]);
-			}
+	while (1) {
+
+		sem_wait(&sync->readersMutex);
+		bool gameFin = game->gameFinished;
+		sem_post(&sync->readersMutex);
+
+		if(gameFin){
+			return;
 		}
 
 		FD_ZERO(&read_fd);
 		for (unsigned i = 0; i < player_count; i++) {
 			FD_SET(pipe_fd[i][READ_END], &read_fd);
 		}
+
+		for (unsigned int i = 0; i < player_count; i++) {
+			sem_wait(&sync->masterMutex);
+			bool isBlocked = game->players[i].isBlocked;
+			sem_post(&sync->masterMutex);
+
+			if (!isBlocked) {
+				sem_post(&sync->playerTurn[i]);
+			}
+		}
+
 
 		tv.tv_sec = timeout;
 		tv.tv_usec = 0;
@@ -253,11 +297,20 @@ void playChompChamps(game_t *game, game_sync *sync, int pipe_fd[MAX_PLAYERS][2],
 		for (unsigned int j = 0; j < player_count; j++) {
 			int idx = (round_robin_start + j) % player_count;
 
-			if (!game->players[idx].isBlocked && FD_ISSET(pipe_fd[idx][READ_END], &read_fd)) {
+			sem_wait(&sync->masterMutex);
+			bool isBlocked = game->players[idx].isBlocked;
+			sem_post(&sync->masterMutex);
+
+			if (!isBlocked && FD_ISSET(pipe_fd[idx][READ_END], &read_fd)) {
 				unsigned char move;
 				ssize_t n = read(pipe_fd[idx][READ_END], &move, sizeof(unsigned char));
 				if (n <= 0) {
+					
+					//FD_CLR(pipe_fd[idx][0], &read_fd);
+					sem_wait(&sync->masterMutex);
 					game->players[idx].isBlocked = 1;
+					sem_post(&sync->masterMutex);
+					//close(pipe_fd[idx][READ_END]);
 				}
 				else {
 					sem_wait(&sync->masterMutex);
@@ -285,17 +338,23 @@ void playChompChamps(game_t *game, game_sync *sync, int pipe_fd[MAX_PLAYERS][2],
 		round_robin_start++;
 
 		int blocked = 0;
+		sem_wait(&sync->masterMutex);
 		for (unsigned int i = 0; i < player_count; i++) {
 			if (game->players[i].isBlocked)
 				blocked++;
 		}
 		if (blocked == (int) player_count) {
 			game->gameFinished = true;
+			sem_post(&sync->masterMutex);
+			break;
 		}
 
 		if (!valid_move_this_round && (time(NULL) - last_valid_move) >= timeout) {
 			game->gameFinished = true;
+			sem_post(&sync->masterMutex);
+			break;
 		}
+		sem_post(&sync->masterMutex);
 	}
 }
 
@@ -355,4 +414,14 @@ void destroy_semaphones(game_sync *sync) {
 	for (int i = 0; i < MAX_PLAYERS; i++) {
 		sem_destroy(&sync->playerTurn[i]);
 	}
+}
+
+void wait_for_players(game_t *game) {
+    int status;
+    for (unsigned int i = 0; i < game->playerCount; i++) {
+        if (game->players[i].player_pid > 0) {
+            waitpid(game->players[i].player_pid, &status, 0);
+            printf("Jugador %u (%s) terminó con status %d\n", i, game->players[i].name, status);
+        }
+    }
 }

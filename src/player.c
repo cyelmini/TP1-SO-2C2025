@@ -87,7 +87,7 @@ int main(int argc, char *argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
-	while (!game->gameFinished && !game->players[my_id].isBlocked) {
+	while (1) {
 		// Esperar turno
 		sem_wait(&sync->playerTurn[my_id]);
 
@@ -98,10 +98,13 @@ int main(int argc, char *argv[]) {
 		// Entrar como lector
 		sem_wait(&sync->readersMutex);
 		sync->readersCount++;
+		bool gameFin = game->gameFinished;
+
 		if (sync->readersCount == 1) {
 			sem_wait(&sync->gameMutex);
 		}
 		sem_post(&sync->readersMutex);
+		
 
 		player_t *me = &game->players[my_id];
 		int dir = choose_move(game, me);
@@ -113,6 +116,10 @@ int main(int argc, char *argv[]) {
 			sem_post(&sync->gameMutex);
 		}
 		sem_post(&sync->readersMutex);
+
+		if(gameFin){
+			return 0;
+		}
 
 		// Si no hay movimiento válido, termino
 		if (dir < 0) {
