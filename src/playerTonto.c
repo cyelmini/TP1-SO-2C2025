@@ -1,0 +1,122 @@
+// This is a personal academic project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++, C#, and Java: https://pvs-studio.com
+
+#include "include/utils.h"
+#include <sched.h>
+#include <stdlib.h>
+#include <time.h>
+
+int count = 0;
+
+static const int DIRS[10] = {0,2,4,4,6,6,0,0,3};
+
+static int in_bounds(const game_t *game, int x, int y) {
+	return (x >= 0 && x < game->width && y >= 0 && y < game->height);
+}
+
+static int is_valid_cell(const game_t *game, int x, int y) {
+	if (!in_bounds(game, x, y)) {
+		return 0;
+	}
+
+	if (game->board[y * game->width + x] <= 0) {
+		return 0;
+	}
+
+	for (unsigned int i = 0; i < game->playerCount; ++i) {
+		const player_t *player = &game->players[i];
+		if (!player->isBlocked && player->x == x && player->y == y) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+static int choose_move(const game_t *game, const player_t *me) {
+	if(count < 10){
+    return DIRS[count++];
+    }
+    return 0;
+}
+
+int main(int argc, char *argv[]) {
+	if (argc != 3) {
+		fprintf(stderr, "Uso: %s <width> <height>\n", argv[0]);
+		exit(EXIT_FAILURE);
+	}
+
+	int width = atoi(argv[1]);
+	int height = atoi(argv[2]);
+
+	// Mapear memoria compartida
+	game_t *game = (game_t *) open_and_map(SHM_GAME, O_RDONLY, sizeof(game_t) + sizeof(int) * width * height, PROT_READ,
+										   MAP_SHARED);
+	game_sync *sync =
+		(game_sync *) open_and_map(SHM_SYNC, O_RDWR, sizeof(game_sync), PROT_READ | PROT_WRITE, MAP_SHARED);
+
+	// Identificar pid
+	pid_t me_pid = getpid();
+	int my_id = -1;
+	for (unsigned int i = 0; i < game->playerCount; ++i) {
+		if (game->players[i].player_pid == me_pid) {
+			my_id = (int) i;
+			break;
+		}
+	}
+	if (my_id < 0) {
+		fprintf(stderr, "Jugador no encontrado en game->players (pid=%d)\n", me_pid);
+		exit(EXIT_FAILURE);
+	}
+
+	while (1) {
+		// Esperar turno
+		sem_wait(&sync->playerTurn[my_id]);
+
+		// Ver si el master quiere escribir
+		sem_wait(&sync->masterMutex);
+		sem_post(&sync->masterMutex);
+
+		// Entrar como lector
+		sem_wait(&sync->readersMutex);
+		sync->readersCount++;
+		bool gameFin = game->gameFinished;
+
+		if (sync->readersCount == 1) {
+			sem_wait(&sync->gameMutex);
+		}
+		sem_post(&sync->readersMutex);
+		
+
+		player_t *me = &game->players[my_id];
+		int dir = choose_move(game, me);
+
+		// Salir como lector
+		sem_wait(&sync->readersMutex);
+		sync->readersCount--;
+		if (sync->readersCount == 0) {
+			sem_post(&sync->gameMutex);
+		}
+		sem_post(&sync->readersMutex);
+
+		if(gameFin){
+			return 0;
+		}
+
+		// Si no hay movimiento válido, termino
+		if (dir < 0) {
+			break;
+		}
+
+		// Enviar movimiento al master
+		unsigned char move = (unsigned char) dir;
+		if (write(STDOUT_FILENO, &move, sizeof(move)) == -1) {
+			perror("write");
+			break;
+		}
+	}
+
+	close_and_unmap(SHM_GAME, game, sizeof(game_t) + sizeof(int) * width * height, false);
+	close_and_unmap(SHM_SYNC, sync, sizeof(game_sync), false);
+
+	return 0;
+}
