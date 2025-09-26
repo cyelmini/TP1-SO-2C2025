@@ -41,3 +41,21 @@ void close_and_unmap(char *name, void *addr, size_t size, bool unlink) {
 		}
 	}
 }
+
+void enter_reader(game_sync *sync) {
+	sem_wait(&sync->readersMutex);
+	sync->readersCount++;
+	if (sync->readersCount == 1) {
+		sem_wait(&sync->gameMutex);
+	}
+	sem_post(&sync->readersMutex);
+}
+
+void exit_reader(game_sync *sync) {
+	sem_wait(&sync->readersMutex);
+	sync->readersCount--;
+	if (sync->readersCount == 0) {
+		sem_post(&sync->gameMutex);
+	}
+	sem_post(&sync->readersMutex);
+}

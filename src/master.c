@@ -40,7 +40,7 @@ int main(int argc, char *argv[]) {
 
 	handle_params(argc, argv, &width, &height, &delay, &timeout, &seed, &view, players, &player_count);
 	
-	//print de la configuracion
+	// Print de la configuracion
 	printf("width: %d\nheight: %d\ndelay: %d\ntimeout: %d\nseed: %d\nview: %s\nnum_players: %u\n", width, height, delay,
 		   timeout, seed, view == NULL ? "-" : view, player_count);
 	for (unsigned int i = 0; i < player_count; i++) {
@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
 
 	initialize_sems(sync);
 	
-	//inicializo variables globales para cleanup
+	// Inicializar variables globales para cleanup
 	game_ptr = game;
 	sync_ptr = sync;
 	g_width = width;
@@ -81,14 +81,18 @@ int main(int argc, char *argv[]) {
 	sync_view(view, sync, delay);
 
 	int max_fd = find_max_fd(pipe_fd, player_count);
-	playChompChamps(game, sync, pipe_fd, player_count, max_fd, delay, timeout, view);
 
-	signal_all_players_ready(game, sync, player_count);
+	playChompChamps(game, sync, pipe_fd, player_count, max_fd, delay, timeout, view);
+	
+	signal_all_players(sync, player_count);
 
 	wait_for_view(view, view_pid, sync);
 	wait_for_players(game, player_count, pipe_fd);
+
 	calculate_winner(game, player_count);
+
 	destroy_semaphones(sync);
+
 	close_and_unmap(SHM_GAME, game, sizeof(game_t) + sizeof(int) * width * height, true);
 	close_and_unmap(SHM_SYNC, sync, sizeof(game_sync), true);
 

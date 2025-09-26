@@ -48,5 +48,7 @@ typedef struct {
 
 void *open_and_map(const char *name, int oflags, size_t size, int prot, int flags);
 void close_and_unmap(char *name, void *addr, size_t size, bool unlink);
+void enter_reader(game_sync *sync);
+void exit_reader(game_sync *sync);
 
 #endif // UTILS_H

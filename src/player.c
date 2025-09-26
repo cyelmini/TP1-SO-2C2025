@@ -59,24 +59,6 @@ int choose_move(const game_t *game, const player_t *me) {
 	return best_dir;
 }
 
-void enter_reader(game_sync *sync) {
-	sem_wait(&sync->readersMutex);
-	sync->readersCount++;
-	if (sync->readersCount == 1) {
-		sem_wait(&sync->gameMutex);
-	}
-	sem_post(&sync->readersMutex);
-}
-
-void exit_reader(game_sync *sync) {
-	sem_wait(&sync->readersMutex);
-	sync->readersCount--;
-	if (sync->readersCount == 0) {
-		sem_post(&sync->gameMutex);
-	}
-	sem_post(&sync->readersMutex);
-}
-
 int main(int argc, char *argv[]) {
 	if (argc != 3) {
 		fprintf(stderr, "Uso: %s <width> <height>\n", argv[0]);
@@ -106,13 +88,11 @@ int main(int argc, char *argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
-	sleep(3);
 
 	while (1) {
 		// Esperar turno
-		printf("El valor del semaforo player turn es %d\n", sync->playerTurn[my_id]);
 		sem_wait(&sync->playerTurn[my_id]);
-		printf("El valor de masterMutex es %d\n", sync->masterMutex);
+
 		// Ver si el master quiere escribir
 		sem_wait(&sync->masterMutex);
 		sem_post(&sync->masterMutex);
@@ -121,9 +101,8 @@ int main(int argc, char *argv[]) {
 		enter_reader(sync);
 
 		bool gameFin = game->gameFinished;
-		bool isBlocked = game->players[my_id].isBlocked;
-		
-		if(gameFin || isBlocked){
+
+		if(gameFin){
 			exit_reader(sync);
 			break;
 		}
@@ -134,13 +113,9 @@ int main(int argc, char *argv[]) {
 		// Salir como lector
 		exit_reader(sync);
 
-		// Si no hay movimiento válido, termino
-	/*		if (dir < 0) {
-			break;
-		}*/
-
 		// Enviar movimiento al master
 		unsigned char move = (unsigned char) dir;
+		
 		if (write(STDOUT_FILENO, &move, sizeof(move)) == -1) {
 			perror("write");
 			break;
