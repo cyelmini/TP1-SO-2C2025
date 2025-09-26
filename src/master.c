@@ -91,6 +91,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	playChompChamps(game, sync, pipe_fd, player_count, max_fd, delay, timeout, view);
+	//wait_for_players(game);
 
 	if (view != NULL) {
 		sem_post(&sync->printNeeded);
