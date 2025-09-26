@@ -28,11 +28,9 @@ static void cleanup(int signo) {
 }
 
 int main(int argc, char *argv[]) {
-	if (argc < 3) {
-		fprintf(stderr, "ERROR: No se ha especificado un jugador.");
-		exit(EXIT_FAILURE);
-	}
+	check_arguments(argc);
 
+	// Valores por defecto
 	unsigned short width = DEFAULT_WIDTH, height = DEFAULT_HEIGHT;
 	int delay = DEFAULT_DELAY, timeout = DEFAULT_TIMEOUT, seed = DEFAULT_SEED;
 	unsigned int player_count = 0;
@@ -41,7 +39,8 @@ int main(int argc, char *argv[]) {
 	int pipe_fd[MAX_PLAYERS][2];
 
 	handle_params(argc, argv, &width, &height, &delay, &timeout, &seed, &view, players, &player_count);
-
+	
+	// Print de la configuracion
 	printf("width: %d\nheight: %d\ndelay: %d\ntimeout: %d\nseed: %d\nview: %s\nnum_players: %u\n", width, height, delay,
 		   timeout, seed, view == NULL ? "-" : view, player_count);
 	for (unsigned int i = 0; i < player_count; i++) {
@@ -51,12 +50,12 @@ int main(int argc, char *argv[]) {
 
 	game_t *game = (game_t *) open_and_map(SHM_GAME, O_CREAT | O_RDWR, sizeof(game_t) + width * height * sizeof(int),
 										   PROT_READ | PROT_WRITE, MAP_SHARED);
-
 	game_sync *sync =
 		(game_sync *) open_and_map(SHM_SYNC, O_CREAT | O_RDWR, sizeof(game_sync), PROT_READ | PROT_WRITE, MAP_SHARED);
 
 	initialize_sems(sync);
-
+	
+	// Inicializar variables globales para cleanup
 	game_ptr = game;
 	sync_ptr = sync;
 	g_width = width;
@@ -67,6 +66,7 @@ int main(int argc, char *argv[]) {
 	signal(SIGINT, cleanup);
 	signal(SIGTERM, cleanup);
 
+	// Inicializar pipes globales
 	for (unsigned int i = 0; i < player_count; i++) {
 		if (pipe(pipe_fd[i]) == -1) {
 			fprintf(stderr, "pipe error");
@@ -78,45 +78,25 @@ int main(int argc, char *argv[]) {
 
 	pid_t view_pid = initialize_game(game, width, height, player_count, seed, players, view, pipe_fd);
 
-	if (view != NULL) {
-		sem_post(&sync->printNeeded);
-		sem_wait(&sync->printDone);
-	}
+	sync_view(view, sync, delay);
 
-	int max_fd = 0;
-	for (unsigned int i = 0; i < player_count; i++) {
-		if (pipe_fd[i][READ_END] > max_fd) {
-			max_fd = pipe_fd[i][READ_END];
-		}
-	}
+	int max_fd = find_max_fd(pipe_fd, player_count);
 
 	playChompChamps(game, sync, pipe_fd, player_count, max_fd, delay, timeout, view);
-	//wait_for_players(game);
+	
+	signal_all_players(sync, player_count);
 
-	if (view != NULL) {
-		sem_post(&sync->printNeeded);
-		int status;
-		waitpid(view_pid, &status, 0);
-		printf("La vista terminó con código %d\n", WEXITSTATUS(status));
-	}
-
-	for (unsigned int i = 0; i < player_count; i++) {
-		int status;
-		waitpid(game->players[i].player_pid, &status, 0);
-		printf("Jugador %u terminó con código %d, puntaje %u / %u / %u\n", i, WEXITSTATUS(status),
-			   game->players[i].score, game->players[i].validMoves, game->players[i].invalidMoves);
-		close(pipe_fd[i][READ_END]);
-		close(pipe_fd[i][WRITE_END]);
-	}
+	wait_for_view(view, view_pid, sync);
+	wait_for_players(game, player_count, pipe_fd);
 
 	calculate_winner(game, player_count);
 
 	destroy_semaphones(sync);
+
 	close_and_unmap(SHM_GAME, game, sizeof(game_t) + sizeof(int) * width * height, true);
 	close_and_unmap(SHM_SYNC, sync, sizeof(game_sync), true);
 
 	game_ptr = NULL;
 	sync_ptr = NULL;
-
 	return 0;
 }

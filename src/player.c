@@ -1,6 +1,5 @@
 // This is a personal academic project. Dear PVS-Studio, please check it.
 // PVS-Studio Static Code Analyzer for C, C++, C#, and Java: https://pvs-studio.com
-
 #include "include/utils.h"
 #include <sched.h>
 #include <stdlib.h>
@@ -17,11 +16,12 @@ static const int DIRS[8][2] = {
 	{-1, -1}, // 7 ARRIBA A LA IZQUIERDA
 };
 
-static int in_bounds(const game_t *game, int x, int y) {
+
+int in_bounds(const game_t *game, int x, int y) {
 	return (x >= 0 && x < game->width && y >= 0 && y < game->height);
 }
 
-static int is_valid_cell(const game_t *game, int x, int y) {
+int is_valid_cell(const game_t *game, int x, int y) {
 	if (!in_bounds(game, x, y)) {
 		return 0;
 	}
@@ -39,15 +39,16 @@ static int is_valid_cell(const game_t *game, int x, int y) {
 	return 1;
 }
 
-static int choose_move(const game_t *game, const player_t *me) {
-	int best_dir = -1;
+int choose_move(const game_t *game, const player_t *me) {
+	int best_dir = 0;
 	int best_score = -1;
 
 	for (int dir = 0; dir < 8; ++dir) {
 		int nx = me->x + DIRS[dir][0];
 		int ny = me->y + DIRS[dir][1];
 
-		if (is_valid_cell(game, nx, ny)) {
+		//if (is_valid_cell(game, nx, ny)) {
+		if( in_bounds(game, nx, ny)) {	
 			int score = game->board[ny * game->width + nx];
 			if (score > best_score) {
 				best_score = score;
@@ -87,6 +88,7 @@ int main(int argc, char *argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
+
 	while (1) {
 		// Esperar turno
 		sem_wait(&sync->playerTurn[my_id]);
@@ -96,38 +98,24 @@ int main(int argc, char *argv[]) {
 		sem_post(&sync->masterMutex);
 
 		// Entrar como lector
-		sem_wait(&sync->readersMutex);
-		sync->readersCount++;
+		enter_reader(sync);
+
 		bool gameFin = game->gameFinished;
 
-		if (sync->readersCount == 1) {
-			sem_wait(&sync->gameMutex);
+		if(gameFin){
+			exit_reader(sync);
+			break;
 		}
-		sem_post(&sync->readersMutex);
-		
 
 		player_t *me = &game->players[my_id];
 		int dir = choose_move(game, me);
 
 		// Salir como lector
-		sem_wait(&sync->readersMutex);
-		sync->readersCount--;
-		if (sync->readersCount == 0) {
-			sem_post(&sync->gameMutex);
-		}
-		sem_post(&sync->readersMutex);
-
-		if(gameFin){
-			return 0;
-		}
-
-		// Si no hay movimiento válido, termino
-		if (dir < 0) {
-			break;
-		}
+		exit_reader(sync);
 
 		// Enviar movimiento al master
 		unsigned char move = (unsigned char) dir;
+		
 		if (write(STDOUT_FILENO, &move, sizeof(move)) == -1) {
 			perror("write");
 			break;
@@ -136,6 +124,5 @@ int main(int argc, char *argv[]) {
 
 	close_and_unmap(SHM_GAME, game, sizeof(game_t) + sizeof(int) * width * height, false);
 	close_and_unmap(SHM_SYNC, sync, sizeof(game_sync), false);
-
 	return 0;
 }
