@@ -106,6 +106,8 @@ int main(int argc, char *argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
+	sleep(3);
+
 	while (1) {
 		// Esperar turno
 		printf("El valor del semaforo player turn es %d\n", sync->playerTurn[my_id]);

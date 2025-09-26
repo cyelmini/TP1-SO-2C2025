@@ -77,6 +77,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	pid_t view_pid = initialize_game(game, width, height, player_count, seed, players, view, pipe_fd);
+
 	sync_view(view, sync, delay);
 
 	int max_fd = find_max_fd(pipe_fd, player_count);

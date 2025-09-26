@@ -52,6 +52,7 @@ pid_t initialize_players_and_view(game_t *game, char **players, char *view, int 
 		game->players[i].x = (i * game->width) / game->playerCount;
 		game->players[i].y = (i * game->height) / game->playerCount;
 		game->players[i].isBlocked = 0;
+		game->board[game->players[i].y * game->width + game->players[i].x] = -i; // Marcar posicion inicial
 
 		pid_t pid = fork();
 		if (pid < 0) {
