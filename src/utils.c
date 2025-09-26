@@ -29,6 +29,7 @@ void *open_and_map(const char *name, int oflags, size_t size, int prot, int flag
 }
 
 void close_and_unmap(char *name, void *addr, size_t size, bool unlink) {
+	
 	if (munmap(addr, size) == -1) {
 		perror("munmap");
 		exit(EXIT_FAILURE);

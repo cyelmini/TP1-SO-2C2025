@@ -10,6 +10,13 @@
 
 static const int DIRS[8][2] = {{0, -1}, {1, -1}, {1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-1, -1}};
 
+void check_arguments(int argc) {
+	if (argc < 3) {
+		fprintf(stderr, "ERROR: No se ha especificado un jugador.");
+		exit(EXIT_FAILURE);
+	}
+}
+
 void initialize_board(unsigned short width, unsigned short height, int board[], int seed) {
 	srand(seed);
 	for (unsigned short i = 0; i < height; i++) {
@@ -105,7 +112,7 @@ void initialize_sems(game_sync *sync) {
 	sem_init(&sync->readersMutex, 1, 1);
 	sync->readersCount = 0;
 	for (int i = 0; i < MAX_PLAYERS; i++) {
-		sem_init(&sync->playerTurn[i], 1, 0);
+		sem_init(&sync->playerTurn[i], 1, 1);
 	}
 }
 
@@ -118,12 +125,6 @@ void check_invalid(const char *c) {
 
 void handle_params(int argc, char *argv[], unsigned short *width, unsigned short *height, int *delay, int *timeout,
 				   int *seed, char **view_path, char **players, unsigned int *player_count) {
-	*width = DEFAULT_WIDTH;
-	*height = DEFAULT_HEIGHT;
-	*delay = DEFAULT_DELAY;
-	*timeout = DEFAULT_TIMEOUT;
-	*seed = DEFAULT_SEED;
-	*view_path = DEFAULT_VIEW;
 	*player_count = 0;
 	int param;
 
@@ -189,75 +190,85 @@ void handle_params(int argc, char *argv[], unsigned short *width, unsigned short
 	}
 }
 
-int validate_and_apply_move(game_t *game, unsigned int idx, unsigned char move) {
-	if (move > 7)
-		return 0;
-	int nx = game->players[idx].x + DIRS[move][0];
-	int ny = game->players[idx].y + DIRS[move][1];
-
-	if (nx < 0 || nx >= game->width || ny < 0 || ny >= game->height)
-		return 0;
-
-	int pos = ny * game->width + nx;
-	if (game->board[pos] <= 0)
-		return 0;
-
-	for (unsigned int i = 0; i < game->playerCount; i++) {
-		if (i != idx && !game->players[i].isBlocked && game->players[i].x == nx && game->players[i].y == ny) {
-			return 0;
-		}
+void sync_view(char *view, game_sync *sync, int delay) {
+	if (view != NULL) {
+		sem_post(&sync->printNeeded);
+		sem_wait(&sync->printDone);
+		usleep(delay * 1000); //delay en milisegundos
 	}
-
-	game->players[idx].x = nx;
-	game->players[idx].y = ny;
-	game->players[idx].score += game->board[pos];
-	game->board[pos] = -idx;
-
-	if (!has_valid_moves(game, idx)) {
-		//sem_wait(&sync->masterMutex);
-        game->players[idx].isBlocked = 1;
-		//sem_post(&sync->masterMutex);
-    }
-
-	return 1;
 }
 
+int validate_and_apply_move(game_sync * sync, game_t *game, unsigned int idx, unsigned char move, fd_set *read_fd, int pipe_fd[MAX_PLAYERS][2] ) {
+	sem_wait(&sync->masterMutex);
+	sem_wait(&sync->gameMutex);
+	sem_post(&sync->masterMutex);
+	
+	int was_valid= 0;
+
+	if (move > 7){
+		game->players[idx].invalidMoves++;
+	}else{
+		int nx = game->players[idx].x + DIRS[move][0];
+		int ny = game->players[idx].y + DIRS[move][1];
+		
+		if(!is_valid_move(nx, ny, game)){
+			game->players[idx].invalidMoves++;
+		}else{
+			int pos = ny * game->width + nx;
+			game->players[idx].x = nx;
+			game->players[idx].y = ny;
+			game->players[idx].score += game->board[pos];
+			game->board[pos] = -idx;
+			was_valid = 1;
+		}
+
+	}
+	
+	for(unsigned int i=0; i<game->playerCount; i++){
+		if(!game->players[i].isBlocked && !has_valid_moves(game, i)){
+			FD_CLR(pipe_fd[i][READ_END], read_fd);
+			game->players[i].isBlocked = 1;
+		}
+	}
+	sem_post(&sync->gameMutex);
+
+	return was_valid;
+}
+
+int is_valid_move(int x, int y, game_t *game) {
+	return(x >= 0 && x < game->width && y >= 0 && y < game->height && game->board[y * game->width + x] > 0);
+}
 
 int has_valid_moves(game_t *game, unsigned int idx) {
     for (int dir = 0; dir < 8; dir++) {
         int nx = game->players[idx].x + DIRS[dir][0];
         int ny = game->players[idx].y + DIRS[dir][1];
-        if (nx >= 0 && nx < game->width && ny >= 0 && ny < game->height) {
-            int pos = ny * game->width + nx;
-            if (game->board[pos] > 0) {
-                // Verifica que no haya otro jugador en esa posición
-                int ocupado = 0;
-                for (unsigned int j = 0; j < game->playerCount; j++) {
-                    if (j != idx && !game->players[j].isBlocked &&
-                        game->players[j].x == nx && game->players[j].y == ny) {
-                        ocupado = 1;
-                        break;
-                    }
-                }
-                if (!ocupado) return 1;
-            }
-        }
+        if(is_valid_move(nx, ny, game)){
+			return 1;
+		}
     }
     return 0;
 }
 
-void playChompChamps(game_t *game, game_sync *sync, int pipe_fd[MAX_PLAYERS][2], unsigned int player_count, int max_fd,
+int someone_can_move(game_t *game, unsigned int player_count){
+	for(unsigned int i=0; i<player_count; i++){
+		if(!game->players[i].isBlocked && has_valid_moves(game, i)){
+			return 1;
+		}
+	}
+	return 0;
+}
+/*
+void oneChompChamps(game_t *game, game_sync *sync, int pipe_fd[MAX_PLAYERS][2], unsigned int player_count, int max_fd,
 					 int delay, int timeout, char *view) {
 	fd_set read_fd;
 	struct timeval tv;
 	int round_robin_start = 0;
 	time_t last_valid_move = time(NULL);
+	bool gameFin;
 
 	while (1) {
-
-		sem_wait(&sync->readersMutex);
-		bool gameFin = game->gameFinished;
-		sem_post(&sync->readersMutex);
+		gameFin = game->gameFinished;
 
 		if(gameFin){
 			return;
@@ -267,7 +278,7 @@ void playChompChamps(game_t *game, game_sync *sync, int pipe_fd[MAX_PLAYERS][2],
 		for (unsigned i = 0; i < player_count; i++) {
 			FD_SET(pipe_fd[i][READ_END], &read_fd);
 		}
-
+	/*esto aun no lo hace sofi
 		for (unsigned int i = 0; i < player_count; i++) {
 			sem_wait(&sync->masterMutex);
 			bool isBlocked = game->players[i].isBlocked;
@@ -289,10 +300,10 @@ void playChompChamps(game_t *game, game_sync *sync, int pipe_fd[MAX_PLAYERS][2],
 		}
 		else if (ready == 0) {
 			fprintf(stderr, "timeout select.\n");
-			break;
+			break; //basicamente return
 		}
 
-		int valid_move_this_round = 0;
+
 
 		for (unsigned int j = 0; j < player_count; j++) {
 			int idx = (round_robin_start + j) % player_count;
@@ -305,27 +316,41 @@ void playChompChamps(game_t *game, game_sync *sync, int pipe_fd[MAX_PLAYERS][2],
 				unsigned char move;
 				ssize_t n = read(pipe_fd[idx][READ_END], &move, sizeof(unsigned char));
 				if (n <= 0) {
-					
+					if(n<0){
+						fprintf(stderr, "ERROR: read\n");
+					}
+
 					//FD_CLR(pipe_fd[idx][0], &read_fd);
 					sem_wait(&sync->masterMutex);
 					game->players[idx].isBlocked = 1;
+					FD_CLR(pipe_fd[idx][READ_END], &read_fd);
 					sem_post(&sync->masterMutex);
 					//close(pipe_fd[idx][READ_END]);
 				}
 				else {
 					sem_wait(&sync->masterMutex);
+					sem_wait(&sync->gameMutex);
+					sem_post(&sync->masterMutex);
+				//	int valid = validate_and_apply_move(sync, game, idx, move, read_fd, pipe_fd);
+					sem_post(&sync->gameMutex);
 
-					int valid = validate_and_apply_move(game, idx, move);
 					if (valid) {
 						game->players[idx].validMoves++;
 						last_valid_move = time(NULL);
-						valid_move_this_round = 1;
+
+
+						if(!someone_can_move(game, player_count)){
+							game->gameFinished = true;
+							return;
+						}
 					}
 					else {
 						game->players[idx].invalidMoves++;
 					}
 
-					sem_post(&sync->masterMutex);
+					if(!game->players[idx].isBlocked){
+						sem_post(&sync->playerTurn[idx]);
+					}
 
 					if (view != NULL) {
 						sem_post(&sync->printNeeded);
@@ -336,9 +361,9 @@ void playChompChamps(game_t *game, game_sync *sync, int pipe_fd[MAX_PLAYERS][2],
 			}
 		}
 		round_robin_start++;
-
+/*
 		int blocked = 0;
-		sem_wait(&sync->masterMutex);
+		sem_wait(&sync->masterMutex); // acordartme de hacer tambien wait al semaforo de game mutex
 		for (unsigned int i = 0; i < player_count; i++) {
 			if (game->players[i].isBlocked)
 				blocked++;
@@ -355,7 +380,100 @@ void playChompChamps(game_t *game, game_sync *sync, int pipe_fd[MAX_PLAYERS][2],
 			break;
 		}
 		sem_post(&sync->masterMutex);
+		
 	}
+
+}
+*/
+void playChompChamps(game_t *game, game_sync *sync, int pipe_fd[MAX_PLAYERS][2], unsigned int player_count, int max_fd,
+					 int delay, int timeout, char *view){
+
+	fd_set read_fd;
+	struct timeval tv;
+	time_t last_valid_move = time(NULL);
+
+	while(!game->gameFinished){
+		if(!someone_can_move(game, player_count)){
+			end_game(game, sync);
+			sync_view(view, sync, delay);
+			break;
+		}
+	
+		fd_set read_fd;
+		FD_ZERO(&read_fd);
+		for (unsigned i = 0; i < player_count; i++) {
+				FD_SET(pipe_fd[i][READ_END], &read_fd);
+		}
+
+		tv.tv_sec = timeout;
+		tv.tv_usec = 0;
+	
+		int ready = select(max_fd + 1, &read_fd, NULL, NULL, &tv);
+		if(ready == -1){
+			fprintf(stderr, "ERROR: select\n");
+			exit(EXIT_FAILURE);
+		}
+		else if(ready == 0){
+			fprintf(stderr, "timeout select.\n");
+			end_game(game, sync);
+			sync_view(view, sync, delay);
+			break; //basicamente return
+		}
+
+		round_robin(game, sync, pipe_fd, player_count, max_fd, delay, timeout, view, &read_fd, &last_valid_move);
+	
+	}
+
+}
+
+void round_robin(game_t * game, game_sync * sync, int pipe_fd[MAX_PLAYERS][2], unsigned int player_count, int max_fd,
+				 int delay, int timeout, char *view, fd_set * read_fd, time_t * last_valid_move){
+	
+
+	int round_robin_start = 0;
+	for(unsigned int j=0; j<player_count; j++){
+		int idx = (round_robin_start + j) % player_count;
+
+		if(!game->players[idx].isBlocked && FD_ISSET(pipe_fd[idx][READ_END], read_fd)){
+			unsigned char move;
+			int n = read(pipe_fd[idx][READ_END], &move, sizeof(unsigned char));
+			if(n<=0){
+				if(n<0)
+					fprintf(stderr, "ERROR");
+				
+				FD_CLR(pipe_fd[idx][READ_END], read_fd);
+				game->players[idx].isBlocked = true;
+
+			} else {
+				bool valid = validate_and_apply_move(sync, game, idx, move, read_fd, pipe_fd);
+
+				if(valid){
+					*last_valid_move = time(NULL);
+					sync_view(view, sync, delay);
+					if(!someone_can_move(game, player_count)){
+						end_game(game, sync);
+						sync_view(view, sync, delay);
+						break;
+					}
+				}
+
+				if(!game->players[idx].isBlocked){
+					sem_post(&sync->playerTurn[idx]);
+				}
+			}
+
+			round_robin_start = (idx+1)%player_count;
+		}
+
+	}
+}
+
+void end_game(game_t *game, game_sync *sync){
+	sem_wait(&sync->masterMutex);
+	sem_wait(&sync->gameMutex);
+	game->gameFinished = true;
+	sem_post(&sync->gameMutex);
+	sem_post(&sync->masterMutex);
 }
 
 void calculate_winner(game_t *game, int player_count) {
@@ -416,12 +534,41 @@ void destroy_semaphones(game_sync *sync) {
 	}
 }
 
-void wait_for_players(game_t *game) {
-    int status;
-    for (unsigned int i = 0; i < game->playerCount; i++) {
-        if (game->players[i].player_pid > 0) {
-            waitpid(game->players[i].player_pid, &status, 0);
-            printf("Jugador %u (%s) terminó con status %d\n", i, game->players[i].name, status);
-        }
-    }
+int find_max_fd(int pipe_fd[MAX_PLAYERS][2], unsigned int player_count) {
+	int max_fd=0;
+	for (unsigned int i = 0; i < player_count; i++) {
+		if (pipe_fd[i][READ_END] > max_fd) {
+			max_fd = pipe_fd[i][READ_END];
+		}
+	}
+	return max_fd;
+}
+
+void wait_for_view(char *view, pid_t view_pid, game_sync *sync) {
+	if (view != NULL) {
+		sem_post(&sync->printNeeded);
+		int status;
+		waitpid(view_pid, &status, 0);
+		printf("La vista terminó con código %d\n", WEXITSTATUS(status));
+	}
+}
+
+void wait_for_players(game_t *game, unsigned int player_count, int pipe_fd[MAX_PLAYERS][2]) {
+	for (unsigned int i = 0; i < player_count; i++) {
+		int status;
+		if(game->players[i].player_pid != 0){
+			waitpid(game->players[i].player_pid, &status, 0);
+			close(pipe_fd[i][READ_END]);
+			close(pipe_fd[i][WRITE_END]);
+		}
+				printf("Jugador %u terminó con código %d, puntaje %u / %u / %u\n", i, WEXITSTATUS(status),
+			   game->players[i].score, game->players[i].validMoves, game->players[i].invalidMoves);
+		
+	}
+}
+
+void signal_all_players_ready(game_t *game, game_sync * sync, unsigned int player_count){
+	for( unsigned int i=0; i<player_count; i++){
+		sem_post(&sync->playerTurn[i]);
+	}
 }
