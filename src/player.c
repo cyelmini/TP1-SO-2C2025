@@ -21,24 +21,6 @@ int in_bounds(const game_t *game, int x, int y) {
 	return (x >= 0 && x < game->width && y >= 0 && y < game->height);
 }
 
-int is_valid_cell(const game_t *game, int x, int y) {
-	if (!in_bounds(game, x, y)) {
-		return 0;
-	}
-
-	if (game->board[y * game->width + x] <= 0) {
-		return 0;
-	}
-
-	for (unsigned int i = 0; i < game->playerCount; ++i) {
-		const player_t *player = &game->players[i];
-		if (!player->isBlocked && player->x == x && player->y == y) {
-			return 0;
-		}
-	}
-	return 1;
-}
-
 int choose_move(const game_t *game, const player_t *me) {
 	int best_dir = 0;
 	int best_score = -1;
